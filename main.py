@@ -61,7 +61,7 @@ Utility functions:
         if 'debug' not in skip_default_args:
             parser.add_argument('--debug', action="store_true", help="print debug messages to the log")
         if 'max-pages' not in skip_default_args:
-            parser.add_argument('--max-pages', default=1)
+            parser.add_argument('--max-pages', default=None)
         if 'clean' not in skip_default_args:
             parser.add_argument('--clean', action="store_true", help="Don't decorate the output")
         for arg in arguments:
@@ -74,7 +74,7 @@ Utility functions:
         try:
             args.max_pages = int(args.max_pages)
         except TypeError:
-            args.max_pages = 1
+            args.max_pages = None
 
         if args.debug:
             logging.getLogger().setLevel(logging.DEBUG)
