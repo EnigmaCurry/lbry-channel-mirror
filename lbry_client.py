@@ -2,6 +2,7 @@ import json
 import requests
 import uuid
 import logging
+import pprint
 
 class LbryRpcException(Exception):
     pass
@@ -9,6 +10,7 @@ class LbryRpcException(Exception):
 class LbryRpcClient:
     def __init__(self, endpoint):
         self.__endpoint = endpoint
+        self.__pprint = pprint.PrettyPrinter(indent=2)
     def __call(self, method, params):
         headers = {"content-type": "application/json"}
         payload = {
@@ -17,7 +19,7 @@ class LbryRpcClient:
             "jsonrpc": "2.0",
             "id": str(uuid.uuid4())
         }
-        logging.debug("Making request: {}".format(payload))
+        logging.debug("Making request: {}".format(self.__pprint.pformat(payload)))
 
         try:
             response = requests.post(self.__endpoint, data=json.dumps(payload),
@@ -31,6 +33,7 @@ class LbryRpcClient:
             raise LbryRpcException("Error in response: {e}".format(e=response))
         ## LBRY app has a broken JSON-RPC implementation and does not return an id:
         ### assert response["id"] == payload["id"]
+        logging.debug("Response: {}".format(self.__pprint.pformat(response)))
         return response["result"]
 
     def __getattr__(self, attr):

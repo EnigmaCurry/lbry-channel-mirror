@@ -17,8 +17,7 @@ def load(directory=os.curdir, name="lbry_mirror.yaml"):
 
     print("Loaded config file: {}".format(path))
     if config is None:
-        print("Configuration file is empty.")
-        exit(1)
+        config = {}
 
     ## Check for required parameters in config file:
     req_params = {
