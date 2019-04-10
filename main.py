@@ -51,10 +51,17 @@ Utility functions:
                                 help="The path to the config yaml file for %(prog)s")
         if 'verbose' not in skip_default_args:
             parser.add_argument('--verbose', action="store_true")
+        if 'max-pages' not in skip_default_args:
+            parser.add_argument('--max-pages', default=1)
         for arg in arguments:
             name, params = (arg['name'], arg.get('params', {}))
             parser.add_argument(name, **params)
         args = parser.parse_args(sys.argv[2:])
+
+        try:
+            args.max_pages = int(args.max_pages)
+        except TypeError:
+            args.max_pages = 1
 
         if args.verbose:
             logging.getLogger().setLevel(logging.DEBUG)
@@ -80,14 +87,14 @@ Utility functions:
         else:
             # Resolve provided URLs:
             urls = args.urls
-        self.__pprint.pprint(self.__client.resolve({"urls": urls}))
+        self.__pprint.pprint(next(self.__client.resolve({"urls": urls})))
 
     def file_list(self):
         """Show all downloaded files"""
         args = self.__create_subcommand("file_list",
                                         description=self.file_list.__doc__)
         channel = self.__config['channel']
-        files = self.__client.file_list({"channel_name": self.__config['channel']})
+        files = next(self.__client.file_list({"channel_name": self.__config['channel']}))
 
         print("Downloaded files for channel {} :".format(channel))
         self.__print_table(header=["claim_id", "file_name", "total_bytes"],
@@ -100,8 +107,11 @@ Utility functions:
     def claim_search(self):
         """Search for all the channel claims, or from a given list of claim ids"""
         args = self.__create_subcommand(
-            "claim_search", [{"name": "claim_ids", "params": {"nargs":"*"}}],
+            "claim_search", [
+                {"name": "claim_ids", "params": {"nargs":"*"}},
+            ],
             description=self.claim_search.__doc__)
+
         channel_name = self.__config['channel']
 
         if len(args.claim_ids):
@@ -111,7 +121,7 @@ Utility functions:
                 self.__pprint.pprint(self.__client.claim_search({"claim_id": claim_id}))
         else:
             # Search for all claims in the channel:
-            channel = self.__client.resolve({"urls": [channel_name]})
+            channel = next(self.__client.resolve({"urls": [channel_name]}))
 
             try:
                 channel_id = channel[channel_name]['certificate']['claim_id']
@@ -120,16 +130,17 @@ Utility functions:
                 raise RuntimeError("Could not find channel_id for {c}".format(
                     c=channel_name))
 
-            claims = self.__client.claim_search({"channel_id": channel_id})
-            assert 'items' in claims, "Invalid claims response: {c}".format(c=claims)
+            items = []
+            for claim in self.__client.claim_search({"channel_id": channel_id}, max_pages=args.max_pages):
+                items.extend(claim['items'])
 
             print("Streams for channel {c} :".format(c=channel_name))
             print("Channel id: {id}".format(id=channel_id))
             self.__print_table(header=["permanent_url", "claim_id"],
                                rows= [[
-                                   f["permanent_url"],
-                                   f["claim_id"],
-                               ] for f in claims['items']])
+                                   i["permanent_url"],
+                                   i["claim_id"],
+                               ] for i in items])
 
 if __name__ == "__main__":
     CommandLine()
