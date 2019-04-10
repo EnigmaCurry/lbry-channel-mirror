@@ -26,17 +26,24 @@ Utility functions:
         args = self.main.parse_args(sys.argv[1:2])
         if not hasattr(self, args.command):
             self.main.print_help()
-            print("\nUnrecognized command: {}".format(args.command))
+            logging.error("\nUnrecognized command: {}".format(args.command))
             exit(1)
         self.__pprint = pprint.PrettyPrinter(indent=2)
+        self.__clean_print = False
         getattr(self, args.command)()
 
     def __print_table(self, header, rows):
-        table = TextTable(max_width=shutil.get_terminal_size((80, 20)).columns)
-        table.header(header)
-        for r in rows:
-            table.add_row(r)
-        print(table.draw())
+        if self.__clean_print:
+            print(", ".join(header))
+            for r in rows:
+                print(", ".join(r))
+        else:
+            #Pretty Print
+            table = TextTable(max_width=shutil.get_terminal_size((80, 20)).columns)
+            table.header(header)
+            for r in rows:
+                table.add_row(r)
+            print(table.draw())
 
     def __create_subcommand(self, name, arguments=[], skip_default_args=[], description=""):
         parser = argparse.ArgumentParser(usage="%(prog)s {name} [options]\n\n{desc}".format(
@@ -50,21 +57,29 @@ Utility functions:
             parser.add_argument('--config', default="lbry_mirror.yaml",
                                 help="The path to the config yaml file for %(prog)s")
         if 'verbose' not in skip_default_args:
-            parser.add_argument('--verbose', action="store_true")
+            parser.add_argument('--verbose', action="store_true", help="print info messages to the log")
+        if 'debug' not in skip_default_args:
+            parser.add_argument('--debug', action="store_true", help="print debug messages to the log")
         if 'max-pages' not in skip_default_args:
             parser.add_argument('--max-pages', default=1)
+        if 'clean' not in skip_default_args:
+            parser.add_argument('--clean', action="store_true", help="Don't decorate the output")
         for arg in arguments:
             name, params = (arg['name'], arg.get('params', {}))
             parser.add_argument(name, **params)
         args = parser.parse_args(sys.argv[2:])
 
+        if args.clean:
+            self.__clean_print = True
         try:
             args.max_pages = int(args.max_pages)
         except TypeError:
             args.max_pages = 1
 
-        if args.verbose:
+        if args.debug:
             logging.getLogger().setLevel(logging.DEBUG)
+        elif args.verbose:
+            logging.getLogger().setLevel(logging.INFO)
 
         self.__client = LbryRpcClient(args.endpoint)
         self.__config = config.load()
@@ -74,7 +89,7 @@ Utility functions:
 
     def status(self):
         args = self.__create_subcommand("status")
-        print("unimplemented, sorry")
+        logging.error("status is unimplemented, sorry")
         exit(1)
 
     def resolve(self):
@@ -96,7 +111,7 @@ Utility functions:
         channel = self.__config['channel']
         files = next(self.__client.file_list({"channel_name": self.__config['channel']}))
 
-        print("Downloaded files for channel {} :".format(channel))
+        logging.info("Downloaded files for channel {} :".format(channel))
         self.__print_table(header=["claim_id", "file_name", "total_bytes"],
                            rows=[[
                                f["claim_id"],
@@ -134,8 +149,8 @@ Utility functions:
             for claim in self.__client.claim_search({"channel_id": channel_id}, max_pages=args.max_pages):
                 items.extend(claim['items'])
 
-            print("Streams for channel {c} :".format(c=channel_name))
-            print("Channel id: {id}".format(id=channel_id))
+            logging.info("Streams for channel {c} :".format(c=channel_name))
+            logging.info("Channel id: {id}".format(id=channel_id))
             self.__print_table(header=["permanent_url", "claim_id"],
                                rows= [[
                                    i["permanent_url"],
@@ -143,4 +158,5 @@ Utility functions:
                                ] for i in items])
 
 if __name__ == "__main__":
+    logging.getLogger().setLevel(logging.WARN)
     CommandLine()

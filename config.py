@@ -1,5 +1,7 @@
 import os
 import yaml
+import logging
+
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
@@ -15,7 +17,7 @@ def load(directory=os.curdir, name="lbry_mirror.yaml"):
         print("Could not open config: {}".format(path))
         exit(1)
 
-    print("Loaded config file: {}".format(path))
+    logging.info("Loaded config file: {}".format(path))
     if config is None:
         config = {}
 
