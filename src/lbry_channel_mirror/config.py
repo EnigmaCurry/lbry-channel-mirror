@@ -11,6 +11,8 @@ try:
 except ImportError:
     from yaml import Loader, Dumper
 
+EPHEMERAL_CONFIG_KEYS = ['config_path', 'download_directory']
+
 def load(directory=os.curdir, name="lbry_channel_mirror.yaml"):
     path = os.path.abspath(os.path.join(directory, name))
     config_errors = []
@@ -27,6 +29,8 @@ def load(directory=os.curdir, name="lbry_channel_mirror.yaml"):
         config = {}
 
     config['config_path'] = path
+    config['download_directory'] = os.path.dirname(path)
+
     return config
 
 def save(config):
@@ -34,7 +38,8 @@ def save(config):
         raise ConfigError("Could not find existing config file: {p}".format(p=path))
 
     path = config['config_path']
-    del config['config_path']
+    for key in EPHEMERAL_CONFIG_KEYS:
+        del config[key]
 
     with open(path, 'w') as f:
         f.write(yaml.dump(config))

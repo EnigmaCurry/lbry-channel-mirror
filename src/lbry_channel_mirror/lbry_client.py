@@ -40,7 +40,7 @@ class LbryRpcClient:
     def __paginate(self, method, params, max_pages=None):
         current_page = page1 = self.__call(method, params)['result']
 
-        if "total_pages" in page1:
+        if type(page1) == dict and "total_pages" in page1:
             if max_pages is not None and max_pages < page1["total_pages"]:
                 pages_to_get = max_pages
             else:

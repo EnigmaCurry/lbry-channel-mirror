@@ -1,5 +1,9 @@
 from lbry_channel_mirror import config as Config
+import os
+import shutil
 import mimetypes
+import time
+import logging
 
 def get_channel_id(client, config):
     channel_name = config['channel']
@@ -14,18 +18,18 @@ def get_channel_id(client, config):
 def fetch(client, config):
     """Gather new claims from the blockchain, and write them to the config file"""
     channel_id = get_channel_id(client, config)
-    claims = []
-    for claim in client.claim_search({"channel_id": channel_id}):
-        claims.extend(claim['items'])
+    remote_claims = []
+    for remote_claim in client.claim_search({"channel_id": channel_id}):
+        remote_claims.extend(remote_claim['items'])
 
-    if not hasattr(config, "mirror_ids"):
-        config['mirror_ids'] = []
+    if not hasattr(config, "claims"):
+        config['claims'] = {}
 
-    mirror_ids = set(config['mirror_ids'])
-
-    for claim in claims:
-        mirror_ids.add(claim['claim_id'])
-    config['mirror_ids'] = list(mirror_ids)
+    for remote_claim in remote_claims:
+        filename = "{name}{ext}".format(
+            name=remote_claim['name'],
+            ext=mimetypes.guess_extension(remote_claim['value']['stream']['media_type']))
+        config['claims'][remote_claim['claim_id']] = {'file_name': filename}
 
     Config.save(config)
 
@@ -33,18 +37,45 @@ def pull(client, config):
     """Download configured files if not existing locally"""
     channel_name = config['channel']
     channel_id = get_channel_id(client, config)
-
-    claims = {} # name -> claim
-    for claim_id in config['mirror_ids']:
+    remote_claims = {} # name -> claim
+    for claim_id in config['claims'].keys():
         claim = next(client.claim_search({"claim_id": claim_id}))
         for i in claim['items']:
-            claims["{chan}/{name}".format(chan=channel_name, name=i['name'])] = i
+            remote_claims[claim_id] = i
 
-    for name, claim in claims.items():
-        f = next(client.file_list({"claim_name": name}))
-        if len(f) == 0:
+    downloads = {} # claim_id -> file_list response
+    for claim_id, claim in remote_claims.items():
+        download_exists = len(next(client.file_list({"claim_id": claim_id}))) > 0
+        filename = config['claims'][claim_id]['file_name']
+        if not os.path.exists(os.path.join(config['download_directory'], filename)):
             # Download the file
-            filename = "{name}.{ext}".format(
-                name= claim['name'],
-                ext=mimetypes.guess_extension(claim['value']['stream']['media_type']))
-            res = next(client.get({"uri": name, "file_name": filename}))
+            if not download_exists:
+                logging.info("Starting Download: {f}".format(f=filename))
+            downloads[claim['claim_id']] = next(client.get({"uri": claim['name']}))
+
+    # Wait for downloads to finish, then copy to the final directory:
+    while len(downloads):
+        for claim_id, dl in list(downloads.items()):
+            filename = config['claims'][claim_id]['file_name']
+            if dl['blobs_remaining'] == 0:
+                # Complete:
+                # Copy to file destination:
+                dest_path = os.path.join(
+                    config['download_directory'], filename)
+                shutil.copy(dl['download_path'], dest_path)
+                # Delete temporary download:
+                if next(client.file_delete({'claim_id': claim_id})):
+                    logging.debug("Deleted temporary download: {f}".format(f=dl['download_path']))
+                else:
+                    logging.warn("Failed to delete temporary downloaded file: {f}".format(
+                        dl['download_path']))
+
+                del downloads[claim_id]
+                logging.info("Download Complete: {f}".format(f=filename))
+            else:
+                downloads[claim_id] = next(client.file_list({"claim_id": claim_id}))[0]
+                logging.info("Download Progress: {f} - blobs remaining: {blobs}".format(
+                    f=filename, blobs=dl['blobs_remaining']))
+                if dl['blobs_remaining'] > 0:
+                    time.sleep(10)
+

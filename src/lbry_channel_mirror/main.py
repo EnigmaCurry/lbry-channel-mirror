@@ -1,5 +1,6 @@
 from lbry_channel_mirror.lbry_client import LbryRpcClient
 from lbry_channel_mirror import config as Config, sync
+import os
 import sys
 import shutil
 import argparse
@@ -117,11 +118,12 @@ Utility functions:
         files = next(self.__client.file_list({"channel_name": self.__config['channel']}))
 
         logging.info("Downloaded files for channel {} :".format(channel))
-        self.__print_table(header=["claim_id", "file_name", "total_bytes"],
+        self.__print_table(header=["claim_id", "file_name", "total_bytes", "blobs_remaining"],
                            rows=[[
                                f["claim_id"],
-                               f["file_name"],
-                               humanize.naturalsize(f["total_bytes"], binary=True)
+                               f['download_path'],
+                               humanize.naturalsize(f["total_bytes"], binary=True),
+                               f["blobs_remaining"]
                            ] for f in files])
 
     def claim_search(self):

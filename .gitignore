@@ -7,3 +7,4 @@ lbrynet*
 /build
 /lbry_channel_mirror.spec
 /src/lbry_channel_mirror.egg-info
+/example
