@@ -46,9 +46,10 @@ Utility functions:
                 table.add_row(r)
             print(table.draw())
 
-    def __create_subcommand(self, name, arguments=[], skip_default_args=[], description=""):
-        parser = argparse.ArgumentParser(usage="%(prog)s {name} [options]\n\n{desc}".format(
-            name=name, desc=description))
+    def __create_subcommand(self, name, arguments=[], skip_default_args=[], description="", usage=None, load_config=True):
+        usage = usage if usage is not None else "%(prog)s {name} [options]\n\n{desc}".format(
+            name=name, desc=description)
+        parser = argparse.ArgumentParser(usage=usage)
         if 'endpoint' not in skip_default_args:
             parser.add_argument('--endpoint', default="http://localhost:5279/",
                                 help="The LBRY RPC endpoint URL")
@@ -75,7 +76,7 @@ Utility functions:
             logging.getLogger().setLevel(logging.WARN)
         try:
             args.max_pages = int(args.max_pages)
-        except TypeError:
+        except (TypeError, AttributeError):
             args.max_pages = None
 
         if args.debug:
@@ -84,9 +85,16 @@ Utility functions:
             logging.getLogger().setLevel(logging.INFO)
 
         self.__client = LbryRpcClient(args.endpoint)
-        self.__config = Config.load()
+        if load_config:
+            self.__config = Config.load()
+        else:
+            self.__config = {}
         if hasattr(args, 'channel') and args.channel is not None:
-            self.__config = {"channel": args.channel}
+            if args.channel.startswith("@"):
+                self.__config = {"channel": args.channel}
+            else:
+                raise RuntimeError("Channel name must start with @")
+
         return args
 
     def fetch(self):
@@ -162,6 +170,28 @@ Utility functions:
                                    i["permanent_url"],
                                    i["claim_id"],
                                ] for i in items])
+
+    def init(self):
+        """Create a new config file in the current directory"""
+        args = self.__create_subcommand(
+            "init", [
+                {"name": "--channel", "params": {"required": True}},
+            ],
+            usage = "%(prog)s init --channel <channel>\n\n{desc}".format(
+                desc=self.init.__doc__),
+            skip_default_args = ['channel', 'max-pages'],
+            description = self.init.__doc__,
+            load_config = False
+        )
+        if not args.channel.startswith("@"):
+            logging.error("Channel name must start with @")
+            sys.exit(1)
+
+        try:
+            Config.init(os.curdir, args.channel)
+        except Config.ConfigError as e:
+            logging.error(e)
+
 
 def main():
     logging.getLogger().setLevel(logging.INFO)
