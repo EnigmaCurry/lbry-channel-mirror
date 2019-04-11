@@ -3,23 +3,40 @@ import os
 import yaml
 import logging
 
+class ConfigError(Exception):
+    pass
+
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
     from yaml import Loader, Dumper
 
-def load(directory=os.curdir, name="lbry_mirror.yaml"):
+def load(directory=os.curdir, name="lbry_channel_mirror.yaml"):
     path = os.path.abspath(os.path.join(directory, name))
     config_errors = []
     try:
-        data = open(path).read()
+        with open(path) as f:
+            data = f.read()
         config = yaml.load(data, Loader=Loader)
-        logging.info("Loaded config file: {}".format(path))
+        logging.info("Loaded config file: {p}".format(p=path))
     except IOError:
-        logging.warn("Could not open config: {}".format(path))
+        logging.warn("Could not open config: {p}".format(p=path))
         config = {}
 
     if config is None:
         config = {}
 
+    config['config_path'] = path
     return config
+
+def save(config):
+    if not os.path.exists(config['config_path']):
+        raise ConfigError("Could not find existing config file: {p}".format(p=path))
+
+    path = config['config_path']
+    del config['config_path']
+
+    with open(path, 'w') as f:
+        f.write(yaml.dump(config))
+    logging.info("Config file saved: {p}".format(p=path))
+

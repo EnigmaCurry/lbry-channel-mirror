@@ -1,5 +1,5 @@
 from lbry_channel_mirror.lbry_client import LbryRpcClient
-from lbry_channel_mirror import config
+from lbry_channel_mirror import config as Config, sync
 import sys
 import shutil
 import argparse
@@ -71,6 +71,7 @@ Utility functions:
 
         if args.clean:
             self.__clean_print = True
+            logging.getLogger().setLevel(logging.WARN)
         try:
             args.max_pages = int(args.max_pages)
         except TypeError:
@@ -82,7 +83,7 @@ Utility functions:
             logging.getLogger().setLevel(logging.INFO)
 
         self.__client = LbryRpcClient(args.endpoint)
-        self.__config = config.load()
+        self.__config = Config.load()
         if hasattr(args, 'channel') and args.channel is not None:
             self.__config = {"channel": args.channel}
         return args
@@ -91,6 +92,14 @@ Utility functions:
         args = self.__create_subcommand("status")
         logging.error("status is unimplemented, sorry")
         sys.exit(1)
+
+    def fetch(self):
+        args = self.__create_subcommand("fetch")
+        sync.fetch(self.__client, self.__config)
+
+    def pull(self):
+        args = self.__create_subcommand("pull")
+        sync.pull(self.__client, self.__config)
 
     def resolve(self):
         """Resolve lbry URLs or the channel itself if no urls are specified"""
@@ -156,9 +165,8 @@ Utility functions:
                                ] for i in items])
 
 def main():
-    logging.getLogger().setLevel(logging.WARN)
+    logging.getLogger().setLevel(logging.INFO)
     CommandLine()
-
 
 if __name__ == "__main__":
     main()

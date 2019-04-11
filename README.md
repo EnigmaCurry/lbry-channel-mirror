@@ -16,7 +16,7 @@ directory.
 
 ## Usage
 
-Create a ```lbry_mirror.yaml``` file inside a directory anywhere you like. (See included example.) Configure the channel you want to mirror.
+Create a ```lbry_channel__mirror.yaml``` file inside a directory anywhere you like. (See included example.) Configure the channel you want to mirror.
 
 See command examples by running the builtin help:
 
