@@ -53,8 +53,8 @@ The tool can search for all the claims for this channel and automatically fill y
 lbry_channel_mirror fetch
 ```
 
-After running `fetch`, your `lbry_channel_mirror.yaml` file now contains all the
-latest claims for the channel you're mirroring:
+After running `fetch`, your `lbry_channel_mirror.yaml` file now contains all of
+the claims for the channel you're mirroring:
 
 ```
 channel: '@EnigmaCurry'

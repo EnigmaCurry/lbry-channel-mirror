@@ -4,6 +4,8 @@ import uuid
 import logging
 import pprint
 
+log = logging.getLogger("lbry_client")
+
 class LbryRpcException(Exception):
     pass
 
@@ -20,7 +22,7 @@ class LbryRpcClient:
             "jsonrpc": "2.0",
             "id": str(uuid.uuid4())
         }
-        logging.debug("Making request: {}".format(self.__pprint.pformat(payload)))
+        log.debug("Making request: {}".format(self.__pprint.pformat(payload)))
 
         try:
             response = requests.post(self.__endpoint, data=json.dumps(payload),
@@ -34,7 +36,7 @@ class LbryRpcClient:
             raise LbryRpcException("Error in response: {e}".format(e=response))
         ## LBRY app has a broken JSON-RPC implementation and does not return an id:
         ### assert response["id"] == payload["id"]
-        logging.debug("Response: {}".format(self.__pprint.pformat(response)))
+        log.debug("Response: {}".format(self.__pprint.pformat(response)))
         return response
 
     def __paginate(self, method, params, max_pages=None):

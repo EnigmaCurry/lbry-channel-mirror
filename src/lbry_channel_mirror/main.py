@@ -9,6 +9,8 @@ from texttable import Texttable as TextTable
 import logging
 import pprint
 
+log = logging.getLogger("main")
+
 class CommandLine:
     # Thank you Chase Seibert for the pattern -
     # https://dzone.com/articles/multi-level-argparse-python
@@ -27,7 +29,7 @@ Utility functions:
         args = self.main.parse_args(sys.argv[1:2])
         if not hasattr(self, args.command):
             self.main.print_help()
-            logging.error("\nUnrecognized command: {}".format(args.command))
+            log.error("\nUnrecognized command: {}".format(args.command))
             sys.exit(1)
         self.__pprint = pprint.PrettyPrinter(indent=2)
         self.__clean_print = False
@@ -73,7 +75,7 @@ Utility functions:
 
         if args.clean:
             self.__clean_print = True
-            logging.getLogger().setLevel(logging.WARN)
+            log.getLogger().setLevel(logging.WARN)
         try:
             args.max_pages = int(args.max_pages)
         except (TypeError, AttributeError):
@@ -125,7 +127,7 @@ Utility functions:
         channel = self.__config['channel']
         files = next(self.__client.file_list({"channel_name": self.__config['channel']}))
 
-        logging.info("Downloaded files for channel {} :".format(channel))
+        log.info("Downloaded files for channel {} :".format(channel))
         self.__print_table(header=["claim_id", "file_name", "total_bytes", "blobs_remaining"],
                            rows=[[
                                f["claim_id"],
@@ -155,7 +157,7 @@ Utility functions:
             try:
                 channel_id = channel[channel_name]['certificate']['claim_id']
             except KeyError:
-                logging.error("Error in resolve response: {c}".format(c=channel))
+                log.error("Error in resolve response: {c}".format(c=channel))
                 raise RuntimeError("Could not find channel_id for {c}".format(
                     c=channel_name))
 
@@ -163,8 +165,8 @@ Utility functions:
             for claim in self.__client.claim_search({"channel_id": channel_id}, max_pages=args.max_pages):
                 items.extend(claim['items'])
 
-            logging.info("Streams for channel {c} :".format(c=channel_name))
-            logging.info("Channel id: {id}".format(id=channel_id))
+            log.info("Streams for channel {c} :".format(c=channel_name))
+            log.info("Channel id: {id}".format(id=channel_id))
             self.__print_table(header=["permanent_url", "claim_id"],
                                rows= [[
                                    i["permanent_url"],
@@ -183,18 +185,14 @@ Utility functions:
             description = self.init.__doc__,
             load_config = False
         )
-        if not args.channel.startswith("@"):
-            logging.error("Channel name must start with @")
-            sys.exit(1)
-
         try:
-            Config.init(os.curdir, args.channel)
+            Config.init(self.__client, os.curdir, args.channel)
         except Config.ConfigError as e:
-            logging.error(e)
+            log.error(e)
 
 
 def main():
-    logging.getLogger().setLevel(logging.INFO)
+    logging.basicConfig(level=logging.INFO)
     CommandLine()
 
 if __name__ == "__main__":

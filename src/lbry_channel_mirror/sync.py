@@ -4,20 +4,35 @@ import shutil
 import mimetypes
 import time
 import logging
+import re
+import unicodedata
+
+log = logging.getLogger("sync")
 
 def guess_file_name(stream):
+
     def guess_extension(media_type):
         if media_type == "audio/mpeg":
             return ".mp3"
         else:
             return mimetypes.guess_extension(media_type)
+
+    def normalize_filename(name):
+        pattern = re.compile("[\w\-. ]")
+        parts = []
+        for ch in name:
+            if pattern.match(ch):
+                parts.append(ch)
+            else:
+                parts.append("-")
+        return "".join(parts)
+
     title = stream['title']
     media_type = stream['media_type']
-    return "{name}{ext}".format(
-        name=title, ext=guess_extension(media_type))
+    return normalize_filename("{name}{ext}".format(
+        name=title, ext=guess_extension(media_type)))
 
-def get_channel_id(client, config):
-    channel_name = config['channel']
+def get_channel_id(client, channel_name):
     channel = next(client.resolve({"urls": [channel_name]}))
     try:
         channel_id = channel[channel_name]['certificate']['claim_id']
@@ -28,13 +43,18 @@ def get_channel_id(client, config):
 
 def fetch(client, config):
     """Gather new claims from the blockchain, and write them to the config file"""
-    channel_id = get_channel_id(client, config)
+    channel_id = get_channel_id(client, config['channel'])
     remote_claims = []
+
+    if "claims" not in config:
+        log.warn("No existing claims found in configuration, starting from scratch.")
+        config['claims'] = {}
+    else:
+        log.info("loaded {x} existing claims".format(x=len(config['claims'])))
+
+    log.info("Searching for claims ... ")
     for remote_claim in client.claim_search({"channel_id": channel_id}):
         remote_claims.extend(remote_claim['items'])
-
-    if not hasattr(config, "claims"):
-        config['claims'] = {}
 
     new_entries = []
     for remote_claim in remote_claims:
@@ -45,40 +65,63 @@ def fetch(client, config):
             claim = config['claims'][claim_id]
         except KeyError:
             # This is a new claim entry:
-            claim = config['claims'][remote_claim['claim_id']] = {'file_name': filename}
+            claim = config['claims'][claim_id] = {'file_name': filename}
             new_entries.append(claim)
 
     if len(new_entries):
         Config.save(config)
-        logging.info("Added {x} new claims to config: {p}".format(x=len(new_entries), p=config["config_path"]))
+        log.info("Added {x} new claims to config: {p}".format(x=len(new_entries), p=config["config_path"]))
+    else:
+        log.info("No new claims to fetch.")
 
 def pull(client, config):
     """Download configured files if not existing locally"""
     channel_name = config['channel']
-    channel_id = get_channel_id(client, config)
+    channel_id = get_channel_id(client, config['channel'])
     remote_claims = {} # name -> claim
+    log.info("Searching for {x} claims ... ".format(x=len(config['claims'])))
     for claim_id in config['claims'].keys():
         claim = next(client.claim_search({"claim_id": claim_id}))
         for i in claim['items']:
             remote_claims[claim_id] = i
 
+
+    ## Gather files to download
+    num_active_downloads = config.get('num_active_downloads', 3)
+    download_queue = [] # claims to download
     new_downloads = [] # keep track of each file that didn't exist previously so we can delete later
-    downloads = {} # claim_id -> file_list response
+    in_progress = {} # claim_id -> file_list response
     for claim_id, claim in remote_claims.items():
         download_exists = len(next(client.file_list({"claim_id": claim_id}))) > 0
         filename = config['claims'][claim_id]['file_name']
+        # Check if file does not already exist in the final output directory:
         if not os.path.exists(os.path.join(config['download_directory'], filename)):
-            # Download the file
+            # Only log about the ones that really need to be downloaded:
             if not download_exists:
-                logging.info("Starting Download: {f}".format(f=filename))
-            downloads[claim['claim_id']] = next(client.get({"uri": claim['name']}))
+                log.debug("Queued Download: {u} : {f}".format(u=claim['name'], f=filename))
+            # Queue files for download:
+            download_queue.append(claim)
             new_downloads.append(claim_id)
 
     num_complete = 0
 
     # Wait for downloads to finish, then copy to the final directory:
-    while len(downloads):
-        for claim_id, dl in list(downloads.items()):
+    while len(in_progress) or len(download_queue):
+        # Start new downloads from the queue:
+        for x in range(len(in_progress), num_active_downloads):
+            try:
+                claim = download_queue.pop(0)
+            except IndexError:
+                # No more downloads
+                break
+            claim_id = claim['claim_id']
+            uri = "{channel}/{name}".format(channel=channel_name, name=claim['name'])
+            filename = config['claims'][claim_id]['file_name']
+            in_progress[claim_id] = next(client.get({"uri": uri}))
+            log.info("Started Download: {u} : {f}".format(u=claim['name'], f=filename))
+
+        # Process the in progress downloads:
+        for claim_id, dl in list(in_progress.items()):
             filename = config['claims'][claim_id]['file_name']
             if dl['blobs_remaining'] == 0:
                 # Complete:
@@ -89,18 +132,18 @@ def pull(client, config):
                 # Delete temporary download:
                 if claim_id in new_downloads:
                     if next(client.file_delete({'claim_id': claim_id})):
-                        logging.debug("Deleted temporary download: {f}".format(f=dl['download_path']))
+                        log.debug("Deleted temporary download: {f}".format(f=dl['download_path']))
                     else:
-                        logging.warn("Failed to delete temporary downloaded file: {f}".format(
+                        log.warn("Failed to delete temporary downloaded file: {f}".format(
                             dl['download_path']))
 
-                del downloads[claim_id]
-                logging.info("Download Complete: {f}".format(f=filename))
+                del in_progress[claim_id]
+                log.info("Download Complete: {f}".format(f=filename))
                 num_complete += 1
             else:
-                downloads[claim_id] = next(client.file_list({"claim_id": claim_id}))[0]
-                logging.info("Download Progress: {f} - blobs remaining: {blobs}".format(
+                in_progress[claim_id] = next(client.file_list({"claim_id": claim_id}))[0]
+                log.info("Download Progress: {f} - blobs remaining: {blobs}".format(
                     f=filename, blobs=dl['blobs_remaining']))
-                if dl['blobs_remaining'] > 0:
-                    time.sleep(10)
-    logging.info("{x} files downloaded.".format(x=num_complete))
+        time.sleep(10)
+
+    log.info("{x} files downloaded.".format(x=num_complete))

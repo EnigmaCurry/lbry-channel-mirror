@@ -2,6 +2,9 @@ import sys
 import os
 import yaml
 import logging
+from lbry_channel_mirror.sync import get_channel_id
+
+log = logging.getLogger("config")
 
 class ConfigError(Exception):
     pass
@@ -21,13 +24,13 @@ def load(directory=os.curdir, name=DEFAULT_CONFIG_NAME, required=True):
         with open(path) as f:
             data = f.read()
         config = yaml.load(data, Loader=Loader)
-        logging.info("Loaded config file: {p}".format(p=path))
+        log.info("Loaded config file: {p}".format(p=path))
     except IOError:
         if required:
-            logging.error("Could not open config: {p}".format(p=path))
+            log.error("Could not open config: {p}".format(p=path))
             sys.exit(1)
         else:
-            logging.warn("Could not open config: {p}".format(p=path))
+            log.warn("Could not open config: {p}".format(p=path))
         config = {}
 
     if config is None:
@@ -52,12 +55,22 @@ def save(config, is_new=False):
 
     with open(path, 'w') as f:
         f.write(yaml.dump(config_copy))
-    logging.info("Config file saved: {p}".format(p=path))
+    log.info("Config file saved: {p}".format(p=path))
 
-def init(directory, channel):
+def init(client, directory, channel):
     """Initialize a directory by creating a new config file"""
+    if not channel.startswith("@"):
+        raise ConfigError("Channel name must start with @")
+
     config_path = os.path.abspath(os.path.join(os.curdir, DEFAULT_CONFIG_NAME))
     if os.path.exists(config_path):
         raise ConfigError("Cannot initialize, configuration already exists: {p}".format(p=config_path))
+
+    if "#" not in channel:
+        claim_id = get_channel_id(client, channel)
+        orig_channel = channel
+        channel = "{c}#{id}".format(c=channel, id=claim_id)
+        log.warn("Translating channel name from {o} to {c}".format(o=orig_channel, c=channel))
+
     config = {"channel": channel, "config_path": config_path}
     save(config, is_new=True)
