@@ -1,3 +1,9 @@
 __pycache__
 *.pyc
 /env
+/build
+lbrynet*
+/dist
+/build
+/lbry_channel_mirror.spec
+/src/lbry_channel_mirror.egg-info

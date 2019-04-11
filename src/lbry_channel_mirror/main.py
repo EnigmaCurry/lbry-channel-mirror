@@ -1,5 +1,5 @@
-from lbry_client import LbryRpcClient
-import config
+from lbry_channel_mirror.lbry_client import LbryRpcClient
+from lbry_channel_mirror import config
 import sys
 import shutil
 import argparse
@@ -27,7 +27,7 @@ Utility functions:
         if not hasattr(self, args.command):
             self.main.print_help()
             logging.error("\nUnrecognized command: {}".format(args.command))
-            exit(1)
+            sys.exit(1)
         self.__pprint = pprint.PrettyPrinter(indent=2)
         self.__clean_print = False
         getattr(self, args.command)()
@@ -90,15 +90,14 @@ Utility functions:
     def status(self):
         args = self.__create_subcommand("status")
         logging.error("status is unimplemented, sorry")
-        exit(1)
+        sys.exit(1)
 
     def resolve(self):
         """Resolve lbry URLs or the channel itself if no urls are specified"""
         args = self.__create_subcommand("resolve", [{"name": "urls", "params":{"nargs": "*"}}])
-        channel_name = self.__config['channel']
         if len(args.urls) == 0:
             # Resolve configured channel:
-            urls = [channel_name]
+            urls = [self.__config['channel']]
         else:
             # Resolve provided URLs:
             urls = args.urls
@@ -127,8 +126,6 @@ Utility functions:
             ],
             description=self.claim_search.__doc__)
 
-        channel_name = self.__config['channel']
-
         if len(args.claim_ids):
             # Search for claim ids:
             for claim_id in args.claim_ids:
@@ -136,6 +133,7 @@ Utility functions:
                 self.__pprint.pprint(self.__client.claim_search({"claim_id": claim_id}))
         else:
             # Search for all claims in the channel:
+            channel_name = self.__config['channel']
             channel = next(self.__client.resolve({"urls": [channel_name]}))
 
             try:
@@ -157,6 +155,10 @@ Utility functions:
                                    i["claim_id"],
                                ] for i in items])
 
-if __name__ == "__main__":
+def main():
     logging.getLogger().setLevel(logging.WARN)
     CommandLine()
+
+
+if __name__ == "__main__":
+    main()
