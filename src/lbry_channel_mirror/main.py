@@ -15,8 +15,8 @@ class CommandLine:
         self.main = argparse.ArgumentParser(usage = """%(prog)s <command> [options]
 
 Examples (append --help to any command for more info):
-  Show current sync status:          %(prog)s status
-  Search for all channel claims:     %(prog)s claim_search
+  Fetch claims and store in config:         %(prog)s fetch
+  Pull/download files to local machine:     %(prog)s pull
 
 Utility functions:
   Resolve lbry URLs:                 %(prog)s resolve @EnigmaCurry @giuseppe
@@ -88,22 +88,19 @@ Utility functions:
             self.__config = {"channel": args.channel}
         return args
 
-    def status(self):
-        args = self.__create_subcommand("status")
-        logging.error("status is unimplemented, sorry")
-        sys.exit(1)
-
     def fetch(self):
-        args = self.__create_subcommand("fetch")
+        """Gather all (new) claims for the channel and record them in the config file"""
+        args = self.__create_subcommand("fetch", description=self.fetch.__doc__)
         sync.fetch(self.__client, self.__config)
 
     def pull(self):
-        args = self.__create_subcommand("pull")
+        """Download all the claims listed in the config file (mirror_ids)"""
+        args = self.__create_subcommand("pull", description=self.pull.__doc__)
         sync.pull(self.__client, self.__config)
 
     def resolve(self):
         """Resolve lbry URLs or the channel itself if no urls are specified"""
-        args = self.__create_subcommand("resolve", [{"name": "urls", "params":{"nargs": "*"}}])
+        args = self.__create_subcommand("resolve", [{"name": "urls", "params":{"nargs": "*"}}], description=self.resolve.__doc__)
         if len(args.urls) == 0:
             # Resolve configured channel:
             urls = [self.__config['channel']]
