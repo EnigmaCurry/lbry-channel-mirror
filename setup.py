@@ -12,12 +12,21 @@ from os.path import dirname
 from os.path import join
 from os.path import splitext
 import subprocess
+import shutil
+import shlex
 
 import distutils.cmd
-import distutils.log
 from setuptools import find_packages
 from setuptools import setup
 import setuptools.command.build_py
+from zipfile import ZipFile
+import platform
+import logging
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger("setup")
+
+program_name = "lbry_channel_mirror"
 
 def read(*names, **kwargs):
     return io.open(
@@ -29,6 +38,15 @@ def read(*names, **kwargs):
 def requirements():
     with open('requirements.txt') as f:
         return [line.strip() for line in f if line.strip()]
+
+def get_version():
+    if shutil.which('git'):
+        current_tag = subprocess.Popen(
+            shlex.split("git tag --points-at HEAD"),
+            stdout=subprocess.PIPE).communicate()[0].decode('utf-8').strip()
+        if len(current_tag) > 0:
+            return current_tag
+    return "SNAPSHOT"
 
 class PyinstallerCommand(distutils.cmd.Command):
     """A custom command to run pyinstaller"""
@@ -46,13 +64,27 @@ class PyinstallerCommand(distutils.cmd.Command):
 
     def run(self):
         """Run command."""
-        command = ['pyinstaller', os.path.join("src","lbry_channel_mirror","main.py"),
-                   "--clean", "-F", "-n", "lbry_channel_mirror"]
-        self.announce(
-            'Running command: %s' % str(command),
-            level=distutils.log.INFO)
+        command = ['pyinstaller', os.path.join("src",program_name,"main.py"),
+                   "--clean", "-F", "-n", program_name]
+        log.info(
+            'Running command: %s' % str(command))
         subprocess.check_call(command)
 
+        version = get_version()
+        operating_system = platform.system()
+        pkgname = '{program_name}-{version}-{platform}'.format(
+            program_name=program_name, version=version, platform=operating_system)
+        zip_path = os.path.join(
+                'dist', '{pkgname}.zip'.format(pkgname=pkgname))
+        with ZipFile(zip_path, 'w') as zip:
+            if operating_system == "Windows":
+                exe = '{name}.exe'.format(name=program_name)
+            else:
+                exe = '{name}'.format(name=program_name)
+            zip.write(os.path.join('dist', exe), "{dirname}/{exe}".format(dirname=pkgname, exe=exe))
+            zip.write("README.md", "{dirname}/README.md".format(dirname=pkgname))
+
+            log.info("Built package for {platform} : {f}".format(platform=operating_system, f=zip_path))
 
 class BuildPyCommand(setuptools.command.build_py.build_py):
     """Custom build command."""
@@ -61,8 +93,8 @@ class BuildPyCommand(setuptools.command.build_py.build_py):
         setuptools.command.build_py.build_py.run(self)
 
 setup(
-    name='lbry_channel_mirror',
-    version='0.1.0',
+    name=program_name,
+    version=get_version(),
     cmdclass={
         'build_exe': PyinstallerCommand,
         'build_py': BuildPyCommand
