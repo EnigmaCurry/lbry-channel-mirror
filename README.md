@@ -2,7 +2,15 @@
 
 Tool to synchronize files from a lbry channel to a local directory.
 
+## Download 
+
+Portable, standalone executables, for Linux and Windows, can be found on the
+[release page](https://github.com/EnigmaCurry/lbry-channel-mirror/releases)
+
 ## Build exe
+
+Alternatively you can build your own executable for any platform that runs
+Python 3.7:
 
 ```
 git clone https://github.com/EnigmaCurry/lbry-channel-mirror.git
