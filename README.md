@@ -2,6 +2,21 @@
 
 Tool to synchronize files from a lbry channel to a local directory.
 
+My personal use case: 
+ * I want to host my own videos on my own webserver. 
+ * The videos are downloaded by this tool, from LBRY, into my webhosting directory.
+ * This tool keeps that directory up to date with the latest videos. If new videos
+   are added to the channel, this tool downloads them.
+ * If I need to create a new web-host, I can run this script there, and all my
+   videos will appear.
+ * All the video file names, along with the claim_ids, are stored in a single
+   YAML file. This means that I can put the config file in a git repository, and
+   thus have a permanent record of my list of videos, along with their LBRY
+   locations.
+
+Thank you to [jessopb](https://github.com/jessopb) for coaching me on the LBRY
+SDK.
+
 ## Download 
 
 Portable, standalone executables, for Linux and Windows, can be found on the
@@ -42,7 +57,7 @@ lbry_channel_mirror resolve --help
 `lbry_channel_mirror.yaml` file as `claims`. But you don't have to create
 this list by hand, the `fetch` command will do that for you.
 
-In a blank directory, or in a directory of files you wish to publish, initialize
+Inside the directory you want the files to download to, initialize
 lbry_channel_mirror with the name of the channel you wish to mirror:
 
 ```
@@ -52,7 +67,7 @@ lbry_channel_mirror init --channel @EnigmaCurry
 This creates a config file (`lbry_channel_mirror.yaml`) with the following:
 
 ```
-channel: '@EnigmaCurry'
+channel: '@EnigmaCurry#9e2f40110d9f121b1caa0661133bac353ef66a71'
 ```
 
 The tool can search for all the claims for this channel and automatically fill your config file:
@@ -65,7 +80,7 @@ After running `fetch`, your `lbry_channel_mirror.yaml` file now contains all of
 the claims for the channel you're mirroring:
 
 ```
-channel: '@EnigmaCurry'
+channel: '@EnigmaCurry#9e2f40110d9f121b1caa0661133bac353ef66a71'
 claims:
   045fd2680317e998e87944e4fb875ceb4d3b8f3c:
     file_name: No Minor Sea.mp4
