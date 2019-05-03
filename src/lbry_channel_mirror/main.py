@@ -53,7 +53,7 @@ Utility functions:
             name=name, desc=description)
         parser = argparse.ArgumentParser(usage=usage)
         if 'endpoint' not in skip_default_args:
-            parser.add_argument('--endpoint', default="http://localhost:5279/",
+            parser.add_argument('--endpoint', default="http://localhost:5279",
                                 help="The LBRY RPC endpoint URL")
         if 'channel' not in skip_default_args:
             parser.add_argument('--channel', default=None, help="Override the channel in the config file")
@@ -107,7 +107,8 @@ Utility functions:
     def pull(self):
         """Download all the claims listed in the config file (mirror_ids)"""
         args = self.__create_subcommand("pull", description=self.pull.__doc__)
-        sync.pull(self.__client, self.__config)
+        config = {**self.__config, 'endpoint': args.endpoint}
+        sync.pull(self.__client, config)
 
     def resolve(self):
         """Resolve lbry URLs or the channel itself if no urls are specified"""

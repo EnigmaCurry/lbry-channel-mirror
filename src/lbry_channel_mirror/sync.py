@@ -6,16 +6,21 @@ import time
 import logging
 import re
 import unicodedata
+import urllib.request
 
 log = logging.getLogger("sync")
 
-def guess_file_name(stream):
+def guess_file_name(claim):
 
     def guess_extension(media_type):
         if media_type == "audio/mpeg":
             return ".mp3"
         else:
-            return mimetypes.guess_extension(media_type)
+            ext = mimetypes.guess_extension(media_type)
+            if ext is None:
+                return ""
+            else:
+                return ext
 
     def normalize_filename(name):
         pattern = re.compile("[\w\-. ]")
@@ -27,10 +32,10 @@ def guess_file_name(stream):
                 parts.append("-")
         return "".join(parts)
 
-    title = stream['title']
-    media_type = stream['media_type']
+    name = claim['name']
+    media_type = claim['value']['source']['media_type']
     return normalize_filename("{name}{ext}".format(
-        name=title, ext=guess_extension(media_type)))
+        name=name, ext=guess_extension(media_type)))
 
 def get_channel_id(client, channel_name):
     channel = next(client.resolve({"urls": [channel_name]}))
@@ -58,7 +63,7 @@ def fetch(client, config):
 
     new_entries = []
     for remote_claim in remote_claims:
-        filename = guess_file_name(remote_claim['value']['stream'])
+        filename = guess_file_name(remote_claim)
         claim_id = remote_claim['claim_id']
         try:
             # Get existing claim entry:
@@ -117,25 +122,25 @@ def pull(client, config):
             claim_id = claim['claim_id']
             uri = "{channel}/{name}".format(channel=channel_name, name=claim['name'])
             filename = config['claims'][claim_id]['file_name']
-            in_progress[claim_id] = next(client.get({"uri": uri}))
+            in_progress[claim_id] = next(client.get({"uri": uri, "save_file": False}))
             log.info("Started Download: {u} : {f}".format(u=claim['name'], f=filename))
 
         # Process the in progress downloads:
         for claim_id, dl in list(in_progress.items()):
             filename = config['claims'][claim_id]['file_name']
             if dl['blobs_remaining'] == 0:
-                # Complete:
-                # Copy to file destination:
-                dest_path = os.path.join(
-                    config['download_directory'], filename)
-                shutil.copy(dl['download_path'], dest_path)
-                # Delete temporary download:
-                if claim_id in new_downloads:
-                    if next(client.file_delete({'claim_id': claim_id})):
-                        log.debug("Deleted temporary download: {f}".format(f=dl['download_path']))
-                    else:
-                        log.warn("Failed to delete temporary downloaded file: {f}".format(
-                            dl['download_path']))
+                # Download Complete.
+                # Stream the file to the final location:
+                log.info("Saving file: {f}".format(f=filename))
+                stream_url = "{endpoint}/get/{name}/{claim_id}".format(
+                    claim_id=claim_id, name=claim['name'],
+                    endpoint=config['endpoint']
+                )
+                print(stream_url)
+                dest_path = os.path.join(config['download_directory'], filename)
+                with urllib.request.urlopen(stream_url) as response, \
+                     open(dest_path, 'wb') as out_file:
+                    shutil.copyfileobj(response, out_file)
 
                 del in_progress[claim_id]
                 log.info("Download Complete: {f}".format(f=filename))
