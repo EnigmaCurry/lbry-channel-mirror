@@ -1,4 +1,4 @@
-# lbry-channel-mirror
+# lbry_channel_mirror
 
 Tool to synchronize files from a lbry channel to a local directory.
 
